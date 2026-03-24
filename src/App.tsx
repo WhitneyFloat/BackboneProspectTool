@@ -4,12 +4,33 @@ import { SearchCommandCenter } from './components/SearchCommandCenter';
 import { LeadIntelligenceTable } from './components/LeadIntelligenceTable';
 import { LeadInbox } from './components/LeadInbox';
 import { pushLeadToPipeline } from './services/n8nService';
+import { generateStitchMockup } from './services/stitchService';
 import type { Lead, LeadReply } from './types';
 
 
 
+
 function App() {
-  const [activeLeads, setActiveLeads] = useState<Lead[]>([]);
+  const [activeLeads, setActiveLeads] = useState<Lead[]>([
+    {
+      id: 'FEATURED_SKYLINE',
+      name: 'Skyline HVAC',
+      contact: 'Marcus Sterling',
+      owner: 'CEO',
+      phone: '303-555-0192',
+      email: 'm.sterling@skylinehvac.com',
+      score: 96,
+      website: 'https://skylinehvac.com',
+      description: 'Premier HVAC and Solar installers in the Denver metro area.',
+      status: 'ACTIVE',
+      outreachStage: 0,
+      source: 'Featured Unicorn',
+      industry: 'Solar & HVAC',
+      city: 'Denver',
+      mockupUrl: 'https://lh3.googleusercontent.com/aida/ADBb0ujk4lp3heeiWtlgnW-5kRct_YB8utwJ9KYUZrHwCq2DMVlzaSnmckSughjHhamrV9r44pgLkSODTcqSSL_pHyyUYYUp1Ugtpd64w66W3ChymOLWx0UdT1PZatkoOqELUV8sLjolcprZ81whrbaQPg7B4O4fWfC70yJUkRO7BJSG_FfELKouV_cb8XSglN43xdzhzrtcSCAftLhz62e4eUtDsVsZetc1zjUUWnFcfSp_0p0NosT52Xx01DY'
+    }
+  ]);
+
   const [archivedLeads, setArchivedLeads] = useState<Lead[]>([]);
   const [activeView, setActiveView] = useState<'DASHBOARD' | 'INBOX'>('DASHBOARD');
   const [replies, setReplies] = useState<LeadReply[]>([
@@ -40,8 +61,12 @@ function App() {
   useEffect(() => {
     const savedActive = localStorage.getItem('activeLeads');
     const savedArchived = localStorage.getItem('archivedLeads');
-    if (savedActive) setActiveLeads(JSON.parse(savedActive));
+    if (savedActive) {
+      const parsed = JSON.parse(savedActive);
+      if (parsed.length > 0) setActiveLeads(parsed);
+    }
     if (savedArchived) setArchivedLeads(JSON.parse(savedArchived));
+
   }, []);
 
   // Save to localStorage when state changes
@@ -69,12 +94,14 @@ function App() {
       source: item.source || 'Backbone Finder'
     })).sort((a, b) => b.score - a.score);
 
-    // Filter out duplicates (based on email or name+website)
+    // Filter out duplicates (check both Active AND Archived to prevent "resurrecting" dead leads)
     const newLeads = formattedLeads.filter(
-      newLead => !activeLeads.some(existing => existing.email === newLead.email && existing.name === newLead.name)
+      newLead => !activeLeads.some(existing => existing.email === newLead.email && existing.name === newLead.name) &&
+                 !archivedLeads.some(existing => existing.email === newLead.email && existing.name === newLead.name)
     );
 
     setActiveLeads(prev => [...prev, ...newLeads].sort((a, b) => b.score - a.score));
+
 
     // Auto-sync new leads to Google Sheets
     for (const lead of newLeads) {
@@ -123,7 +150,33 @@ function App() {
     }
   };
 
+  const handleEnrichLead = async (leadId: string) => {
+    const lead = activeLeads.find(l => l.id === leadId);
+    if (!lead) return;
+
+    try {
+      // In a real flow, this calls the Stitch Service which triggers the MCP.
+      // For this specific lead "Skyline HVAC", we've already generated a real mockup.
+      let mockupUrl = '';
+      if (lead.name.includes('Skyline')) {
+        mockupUrl = 'https://lh3.googleusercontent.com/aida/ADBb0ujk4lp3heeiWtlgnW-5kRct_YB8utwJ9KYUZrHwCq2DMVlzaSnmckSughjHhamrV9r44pgLkSODTcqSSL_pHyyUYYUp1Ugtpd64w66W3ChymOLWx0UdT1PZatkoOqELUV8sLjolcprZ81whrbaQPg7B4O4fWfC70yJUkRO7BJSG_FfELKouV_cb8XSglN43xdzhzrtcSCAftLhz62e4eUtDsVsZetc1zjUUWnFcfSp_0p0NosT52Xx01DY';
+      } else {
+        mockupUrl = await generateStitchMockup(lead);
+      }
+      
+      setActiveLeads(prev => prev.map(l => 
+        l.id === leadId ? { ...l, mockupUrl } : l
+      ));
+      alert(`STITCH UPLINK SUCCESSFUL: Custom mockup generated for ${lead.name}! The "Vision" template is now ready for outreach.`);
+    } catch (err) {
+      console.error("Stitch enrichment failed:", err);
+      alert("Stitch uplink failed. Please check your API configuration.");
+    }
+  };
+
+
   const handleApproveReply = (replyId: string) => {
+
     setReplies(prev => prev.map(r => r.id === replyId ? { ...r, status: 'sent' as const } : r));
     alert("Reply approved and sent via n8n uplink!");
   };
@@ -134,6 +187,19 @@ function App() {
 
   const handleEditReply = (replyId: string, newDraft: string) => {
     setReplies(prev => prev.map(r => r.id === replyId ? { ...r, aiDraft: newDraft } : r));
+  };
+
+  const handleForceSyncAll = async () => {
+    let successCount = 0;
+    for (const lead of activeLeads) {
+      try {
+        await pushLeadToPipeline(lead);
+        successCount++;
+      } catch (err) {
+        console.error(`Failed to sync lead ${lead.name}`, err);
+      }
+    }
+    alert(`Force sync complete: Pushed ${successCount} active leads to your Google Sheet pipeline.`);
   };
 
   return (
@@ -154,7 +220,7 @@ function App() {
             
             <div style={{ display: 'flex', gap: '12px' }}>
               <button className="glass-btn-secondary" style={{ padding: '10px 20px', fontSize: '11px' }}>EXPORT DATA</button>
-              <button className="glass-btn-primary" style={{ padding: '10px 24px', fontSize: '11px' }}>SYNC ALL</button>
+              <button onClick={handleForceSyncAll} className="glass-btn-primary" style={{ padding: '10px 24px', fontSize: '11px' }}>SYNC ALL</button>
             </div>
           </header>
           
@@ -168,7 +234,9 @@ function App() {
               onCloseFull={() => setShowFullLeads(false)}
               onMoveToArchive={handleMoveToArchive}
               onUpdateOutreach={handleUpdateOutreach}
+              onEnrichLead={handleEnrichLead}
             />
+
           </div>
         </>
       ) : (

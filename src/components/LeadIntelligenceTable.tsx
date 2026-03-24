@@ -14,7 +14,9 @@ interface LeadIntelligenceTableProps {
   onCloseFull?: () => void;
   onMoveToArchive: (leadId: string, reason: 'unresponsive' | 'notInterested') => void;
   onUpdateOutreach: (leadId: string, stage: number) => void;
+  onEnrichLead: (leadId: string) => void;
 }
+
 
 export function LeadIntelligenceTable({ 
   leads, 
@@ -22,8 +24,10 @@ export function LeadIntelligenceTable({
   externalShowFull, 
   onCloseFull,
   onMoveToArchive,
-  onUpdateOutreach
+  onUpdateOutreach,
+  onEnrichLead
 }: LeadIntelligenceTableProps) {
+
   const [activeModalLead, setActiveModalLead] = useState<Lead | null>(null);
   const [previewingLead, setPreviewingLead] = useState<Lead | null>(null);
 
@@ -89,9 +93,40 @@ export function LeadIntelligenceTable({
             data.map((lead) => (
               <tr key={lead.id} style={{ opacity: currentTab === 'archived' ? 0.7 : 1 }}>
                 <td>
-                  <div style={{ fontWeight: '700', marginBottom: '4px', color: '#fff', fontSize: '14px' }}>{lead.name.toUpperCase()}</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--on-surface-variant)', opacity: 0.7 }}>
-                    <Link size={10} /> {lead.website}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {lead.mockupUrl && (
+                      <div 
+                        style={{ 
+                          width: '40px', 
+                          height: '40px', 
+                          borderRadius: '8px', 
+                          overflow: 'hidden', 
+                          border: '1px solid var(--primary)',
+                          flexShrink: 0,
+                          cursor: 'pointer'
+                        }}
+                        onClick={() => window.open(lead.mockupUrl, '_blank')}
+                      >
+                        <img 
+                          src={lead.mockupUrl} 
+                          alt="Mockup" 
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <div style={{ fontWeight: '700', marginBottom: '2px', color: '#fff', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {lead.name.toUpperCase()}
+                        {lead.score > 85 && (
+                          <span style={{ fontSize: '10px', color: 'var(--primary)', padding: '2px 6px', background: 'rgba(158, 202, 255, 0.1)', borderRadius: '4px', border: '1px solid rgba(158, 202, 255, 0.2)' }}>
+                            UNICORN
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: 'var(--on-surface-variant)', opacity: 0.7 }}>
+                        <Link size={10} /> {lead.website}
+                      </div>
+                    </div>
                   </div>
                   {lead.status === 'ARCHIVED' && (
                     <div style={{ fontSize: '10px', color: '#ff4b4b', fontWeight: '800', marginTop: '6px', letterSpacing: '0.1em' }}>
@@ -132,13 +167,26 @@ export function LeadIntelligenceTable({
                     {currentTab === 'active' ? (
                       <>
                         <button 
-                          className="glass-btn-primary" 
+                          className={lead.mockupUrl ? "glass-btn-primary pulsate-primary" : "glass-btn-primary"} 
                           title="Preview Next Message"
                           style={{ padding: '8px 12px', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '6px' }}
                           onClick={() => setPreviewingLead(lead)}
                         >
-                          <Send size={14} /> SEND TOUCH {Math.min(lead.outreachStage + 1, 8)}
+                          <Send size={14} /> SEND {lead.mockupUrl ? 'VISION' : `TOUCH ${Math.min(lead.outreachStage + 1, 8)}`}
                         </button>
+                        {lead.score > 85 && !lead.mockupUrl && (
+                          <button 
+                            className="glass-btn-secondary" 
+                            title="Enrich AI (Create Mockup)"
+                            style={{ padding: '8px', borderRadius: '8px', color: 'var(--primary)' }}
+                            onClick={() => onEnrichLead(lead.id)}
+                          >
+                            <Sparkles size={14} fill="currentColor" />
+                          </button>
+                        )}
+
+
+
                         <button 
                           className="glass-btn-secondary" 
                           title="Not Interested"
@@ -280,44 +328,118 @@ export function LeadIntelligenceTable({
 
       {/* Message Preview Modal */}
       {previewingLead && (
-        <div style={{ 
-          position: 'fixed', 
-          inset: 0, 
-          zIndex: 200, 
-          background: 'rgba(6, 20, 35, 0.8)', 
-          backdropFilter: 'blur(15px)', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center'
-        }}>
-          <div className="glass-card" style={{ width: '100%', maxWidth: '600px', padding: '40px', position: 'relative' }}>
+        <div 
+          onClick={() => setPreviewingLead(null)}
+          style={{ 
+            position: 'fixed', 
+            inset: 0, 
+            zIndex: 200, 
+            background: 'rgba(6, 20, 35, 0.85)', 
+            backdropFilter: 'blur(20px)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center',
+            padding: '40px'
+          }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className="glass-card" 
+            style={{ width: '100%', maxWidth: '600px', padding: '40px', position: 'relative' }}
+          >
             <div className="hud-corner-tl"></div>
             <div className="hud-corner-br"></div>
             
+            <button 
+              onClick={() => setPreviewingLead(null)}
+              style={{
+                position: 'absolute',
+                top: '20px',
+                right: '20px',
+                background: 'transparent',
+                border: 'none',
+                color: 'rgba(255,255,255,0.4)',
+                cursor: 'pointer',
+                padding: '8px',
+                zIndex: 10
+              }}
+              onMouseOver={(e) => e.currentTarget.style.color = 'var(--primary)'}
+              onMouseOut={(e) => e.currentTarget.style.color = 'rgba(255,255,255,0.4)'}
+            >
+              <Activity size={20} style={{ transform: 'rotate(45deg)' }} /> 
+            </button>
+
             <header style={{ marginBottom: '24px' }}>
               <div style={{ fontSize: '10px', color: 'var(--primary)', letterSpacing: '0.2em', marginBottom: '8px' }}>MESSAGING_UPLINK // TOUCH {Math.min(previewingLead.outreachStage + 1, 8)}</div>
               <h2 className="hero-display" style={{ fontSize: '20px' }}>PREVIEW OUTREACH</h2>
             </header>
 
             {(() => {
-              const nextStage = Math.min(previewingLead.outreachStage + 1, 8);
+              const isUnicorn = previewingLead.score > 85;
+              const nextStage = isUnicorn ? 9 : Math.min(previewingLead.outreachStage + 1, 8);
               const template = populateTemplate(nextStage, previewingLead);
+
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div>
                     <label style={{ fontSize: '9px', color: 'var(--on-surface-variant)', letterSpacing: '0.1em' }}>EMAIL SUBJECT</label>
                     <div className="glass-input" style={{ marginTop: '8px', padding: '12px', fontSize: '13px', color: '#fff' }}>{template.subject}</div>
                   </div>
-                  <div>
-                    <label style={{ fontSize: '9px', color: 'var(--on-surface-variant)', letterSpacing: '0.1em' }}>MESSAGE BODY</label>
-                    <textarea 
-                      readOnly 
-                      className="glass-input" 
-                      style={{ marginTop: '8px', width: '100%', height: '250px', fontSize: '12px', lineHeight: '1.6', background: 'rgba(255,255,255,0.02)' }}
-                      value={template.body}
+                  <div style={{ marginBottom: '24px' }}>
+                <div style={{ fontSize: '10px', color: 'var(--on-surface-variant)', letterSpacing: '0.1em', marginBottom: '8px' }}>MESSAGE CONTENT</div>
+                <div className="glass-input" style={{ 
+                  padding: '16px', 
+                  minHeight: '200px', 
+                  fontSize: '13px', 
+                  lineHeight: '1.6', 
+                  color: '#fff',
+                  whiteSpace: 'pre-wrap',
+                  background: 'rgba(255,255,255,0.02)'
+                }}>
+                   {template.body}
+                </div>
+
+              </div>
+
+              {previewingLead.mockupUrl && (
+                <div style={{ marginBottom: '24px' }}>
+                  <div style={{ fontSize: '10px', color: 'var(--on-surface-variant)', letterSpacing: '0.1em', marginBottom: '12px' }}>CUSTOM VISION MOCKUP</div>
+                  <div style={{ 
+                    borderRadius: '12px', 
+                    overflow: 'hidden', 
+                    border: '1px solid var(--primary)',
+                    background: '#000',
+                    height: '450px',
+                    width: 'fit-content',
+                    margin: '0 auto',
+                    position: 'relative'
+                  }}>
+                    <img 
+                      src={previewingLead.mockupUrl} 
+                      alt="Custom App Mockup" 
+                      style={{ height: '100%', width: 'auto', display: 'block' }} 
                     />
+
+                    <div style={{ 
+                      position: 'absolute', 
+                      bottom: '12px', 
+                      right: '12px', 
+                      background: 'rgba(0,0,0,0.7)', 
+                      padding: '4px 12px', 
+                      borderRadius: '20px', 
+                      fontSize: '10px', 
+                      color: 'var(--primary)',
+                      border: '1px solid var(--primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <Sparkles size={10} /> PERSONALIZED VISION
+                    </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                </div>
+              )}
+    <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
                     <button 
                       className="glass-btn-secondary" 
                       onClick={() => setPreviewingLead(null)}
@@ -333,7 +455,7 @@ export function LeadIntelligenceTable({
                       }}
                       style={{ flex: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
                     >
-                      <Mail size={16} /> TRIGGER SEND VIA n8n
+                      <Mail size={16} /> SEND EMAIL VIA n8n
                     </button>
                   </div>
                 </div>

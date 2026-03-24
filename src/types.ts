@@ -8,11 +8,15 @@ export interface Lead {
   email: string;
   score: number;
   description?: string;
+  industry?: string;
+  city?: string;
   status: string;
   outreachStage: number;
   archiveReason?: string;
   source?: string;
+  mockupUrl?: string;
 }
+
 
 export interface LeadReply {
   id: string;

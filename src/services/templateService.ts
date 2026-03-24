@@ -257,8 +257,35 @@ Backbone
 Founder | Developer
 (646) 444-4131`,
     cadenceDays: 10
+  },
+  {
+    id: 9, // Unicorn Strategy
+    name: "The Unicorn Vision",
+
+    subjects: [
+      "{CompanyName}: I built a prototype of your technician app",
+      "I mocked up a custom app for {CompanyName}",
+      "{FirstName}, a visual concept for your team"
+    ],
+    body: `Hi {FirstName},
+
+I was looking at {CompanyName}’s recent growth in the {City} area.
+
+I noticed most {Industry} teams in your bracket lose about 15% of their margin to 'documentation lag'—techs forgetting photos or signatures on-site.
+
+I’m a specialized developer for {Industry} teams. I actually used some innovative AI design tools to mock up what a custom '{CompanyName}' mobile app would look like for your crew. It handles field capture and real-time syncing natively.
+
+[ VIEW YOUR CUSTOM PROTOTYPE HERE: {MockupUrl} ]
+
+I can have this fully functional and in your technicians' hands in under 14 days. Worth a 5-minute chat to see the full workflow?
+
+Best,
+Whitney Wilson
+Backbone`,
+    cadenceDays: 0
   }
 ];
+
 
 export interface TemplateData {
   name?: string;
@@ -275,8 +302,11 @@ export function populateTemplate(templateId: number, data: TemplateData) {
     return text
       .replace(/{FirstName}/g, data.name?.split(' ')[0] || 'there')
       .replace(/{CompanyName}/g, data.name || 'your company')
-      .replace(/{Industry}/g, data.industry || 'your industry')
+      .replace(/{Industry}/g, data.industry || 'the trade')
+      .replace(/{City}/g, (data as any).city || 'your area')
+      .replace(/{MockupUrl}/g, (data as any).mockupUrl || '[MOCKUP_LINK_PENDING]')
       .replace(/{Source}/g, data.source || 'our research');
+
   };
 
   return {
