@@ -17,7 +17,8 @@ export async function scrapeGoogleMaps(query: string, maxResults: number) {
     exportPlaceUrls: false,
     includeWebResults: false,
   };
-  return runApifyActor('nwua~google-maps-scraper', input);
+  // Using official Apify Google Maps Scraper
+  return runApifyActor('apify~google-maps-scraper', input);
 }
 
 // Act 2: LinkedIn Profile Scraper (curious_coder/linkedin-profile-scraper)
@@ -40,7 +41,8 @@ export async function scrapeWebsiteContacts(urls: string[]) {
     ignoreImageExt: true,
     ignoreVideoExt: true,
   };
-  return runApifyActor('jakubbalada~contact-email-scraper', input);
+  // Using official Apify Contact Details Scraper
+  return runApifyActor('apify~contact-details-scraper', input);
 }
 
 // Act 4: Yelp Scraper (apify/yelp-scraper)
@@ -66,6 +68,30 @@ export async function scrapeFacebook(queries: string[], maxResults: number) {
   return runApifyActor('apify~facebook-pages-scraper', input);
 }
 
+/*
+## Final Steps for Vercel
+
+The code is now on GitHub, but for the "API token not configured" error to disappear on your live site, you **must** add the environment variables to Vercel manually.
+
+### 1. Add Variables to Vercel
+1.  Go to your project in the [Vercel Dashboard](https://vercel.com/dashboard).
+2.  Navigate to **Settings** > **Environment Variables**.
+3.  Add the following keys (copy the values from your local `.env` file):
+    - `VITE_APIFY_API_TOKEN`
+    - `VITE_GEMINI_API_KEY`
+    - `VITE_N8N_WEBHOOK_URL`
+    - `VITE_STITCH_API_KEY`
+4.  Click **Save**.
+
+### 2. Redeploy
+1.  Go to the **Deployments** tab.
+2.  Find the latest deployment (it should be BUILDING now because of my push).
+3.  If it hasn't started, click the three dots (...) and select **Redeploy**.
+
+### 3. Local Verification
+Don't forget to **RESTART** your local `npm run dev` server as well! I've added diagnostic logs that will show up in your browser console to confirm when the keys are loaded correctly.
+*/
+
 // Act 6: State License Databases (Generic placeholder)
 export async function scrapeStateLicenses(state: string, trade: string) {
   validateToken();
@@ -79,10 +105,12 @@ export async function scrapeStateLicenses(state: string, trade: string) {
 
 // Helper: Generic Apify Actor Runner
 async function runApifyActor(actorId: string, input: Record<string, unknown>) {
-
   try {
+    console.log(`[Apify Service] Starting Run for ${actorId}...`);
+    
+    // 1. Start the actor run and wait for it to finish (up to 60s)
     const response = await fetch(
-      `https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_TOKEN}`,
+      `https://api.apify.com/v2/acts/${actorId}/runs?token=${APIFY_TOKEN}&wait=60`,
       {
         method: 'POST',
         headers: {
@@ -93,20 +121,30 @@ async function runApifyActor(actorId: string, input: Record<string, unknown>) {
     );
 
     if (!response.ok) {
-      throw new Error(`Apify Run failed for ${actorId}: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(`Apify Run failed for ${actorId}: ${response.statusText} ${errorData.error?.message || ''}`);
     }
 
     const { data: run } = await response.json();
     
-    // For this app, we poll the dataset once the run is finished.
-    // In a production app, we'd use webhooks or background polling.
-    // We'll fetch the results from the default dataset.
+    if (run.status !== 'SUCCEEDED') {
+      console.warn(`[Apify Service] Run ${run.id} finished with status: ${run.status}`);
+      // If it's still running, we might need to fetch what we have so far
+    }
+
+    // 2. Fetch the results from the default dataset
     const resultsResponse = await fetch(
       `https://api.apify.com/v2/datasets/${run.defaultDatasetId}/items?token=${APIFY_TOKEN}`
     );
     
-    return await resultsResponse.json();
-  } catch (error) {
+    if (!resultsResponse.ok) {
+      throw new Error(`Failed to fetch results from dataset ${run.defaultDatasetId}`);
+    }
+
+    const results = await resultsResponse.json();
+    console.log(`[Apify Service] Run Complete. Fetched ${results.length} results.`);
+    return results;
+  } catch (error: any) {
     console.error(`Apify Scrape Error (${actorId}):`, error);
     throw error;
   }
