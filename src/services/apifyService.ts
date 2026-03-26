@@ -122,7 +122,7 @@ async function runApifyActor(actorId: string, input: Record<string, unknown>) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(`Apify Run failed for ${actorId}: ${response.statusText} ${errorData.error?.message || ''}`);
+      throw new Error(`[UPLINK_FIX_v2] Apify Run failed for ${actorId}: ${response.statusText} ${errorData.error?.message || ''}`);
     }
 
     const { data: run } = await response.json();
